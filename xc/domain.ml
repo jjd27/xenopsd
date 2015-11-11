@@ -199,30 +199,18 @@ let make ~xc ~xs vm_info uuid =
 		debug "VM = %s; creating xenstored tree: %s" (Uuid.to_string uuid) dom_path;
 
 		let create_time = Oclock.gettime Oclock.monotonic in
+
+		(* CA-183553: workaround xenstored's silly notion of conflicts
+		 * by splitting the stuff writing to /vm and /vss into a separate
+		 * transaction from the stuff writing to /local/domain. If
+		 * xenstored is fixed to not treat non-overlapping writes as
+		 * conflicts then the following transactions can be coalesced
+		 * back into a single transaction. *)
 		Xs.transaction xs (fun t ->
 			(* Clear any existing rubbish in xenstored *)
 			t.Xst.rm dom_path;
 			t.Xst.mkdir dom_path;
 			t.Xst.setperms dom_path roperm;
-
-			(* The /vm path needs to be shared over a localhost migrate *)
-			let vm_exists = try ignore(t.Xst.read vm_path); true with _ -> false in
-			if vm_exists then
-				xenstore_iter t (fun d -> t.Xst.setperms d roperm) vm_path
-			else begin
-				t.Xst.mkdir vm_path;
-				t.Xst.setperms vm_path roperm;
-				t.Xst.writev vm_path [
-					"uuid", (Uuid.to_string uuid);
-					"name", name;
-				];
-			end;
-			t.Xst.write (Printf.sprintf "%s/domains/%d" vm_path domid) dom_path;
-			t.Xst.write (Printf.sprintf "%s/domains/%d/create-time" vm_path domid) (Int64.to_string create_time);
-
-			t.Xst.rm vss_path;
-			t.Xst.mkdir vss_path;
-			t.Xst.setperms vss_path rwperm;
 
 			t.Xst.write (dom_path ^ "/vm") vm_path;
 			t.Xst.write (dom_path ^ "/vss") vss_path;
@@ -240,6 +228,29 @@ let make ~xc ~xs vm_info uuid =
 				t.Xst.mkdir ent;
 				t.Xst.setperms ent rwperm
 			) [ "device"; "error"; "drivers"; "control"; "attr"; "data"; "messages"; "vm-data"; "hvmloader"; "rrd" ];
+		);
+
+		Xs.transaction xs (fun t ->
+			(* The /vm path needs to be shared over a localhost migrate *)
+			let vm_exists = try ignore(t.Xst.read vm_path); true with _ -> false in
+			if vm_exists then
+				xenstore_iter t (fun d -> t.Xst.setperms d roperm) vm_path
+			else begin
+				t.Xst.mkdir vm_path;
+				t.Xst.setperms vm_path roperm;
+				t.Xst.writev vm_path [
+					"uuid", (Uuid.to_string uuid);
+					"name", name;
+				];
+			end;
+			t.Xst.write (Printf.sprintf "%s/domains/%d" vm_path domid) dom_path;
+			t.Xst.write (Printf.sprintf "%s/domains/%d/create-time" vm_path domid) (Int64.to_string create_time);
+		);
+
+		Xs.transaction xs (fun t ->
+			t.Xst.rm vss_path;
+			t.Xst.mkdir vss_path;
+			t.Xst.setperms vss_path rwperm;
 		);
 
 		xs.Xs.writev dom_path (filtered_xsdata vm_info.xsdata);
