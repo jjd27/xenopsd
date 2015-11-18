@@ -57,31 +57,21 @@ let add_device ~xs device backend_list frontend_list private_list =
 	and private_data_path = Device_common.get_private_data_path_of_device device in
 
 	debug "adding device  B%d[%s]  F%d[%s]  H[%s]" device.backend.domid backend_path device.frontend.domid frontend_path hotplug_path;
-	Xs.transaction xs (fun t ->
-		begin try
-			ignore (t.Xst.read frontend_path);
-			raise (Device_frontend_already_connected device)
-		with Xs_protocol.Enoent _ -> () end;
 
-		t.Xst.rm frontend_path;
-		t.Xst.rm backend_path;
+	(* CA-183553: As a workaround to the poor transaction-conflict algorithm
+	 * in xenstored, we split this across three transactions. If
+	 * xenstored is fixed to not treat non-overlapping writes as
+	 * conflicts then the following transactions can be coalesced
+	 back into a single transaction. *)
+
+	(* The /xapi stuff *)
+	Xs.transaction xs (fun t ->
 		(* CA-16259: don't clear the 'hotplug_path' because this is where we
 		   record our own use of /dev/loop devices. Clearing this causes us to leak
 		   one per PV .iso *)
 
-		t.Xst.mkdir frontend_path;
-		t.Xst.setperms frontend_path (Xenbus_utils.device_frontend device);
-
-		t.Xst.mkdir backend_path;
-		t.Xst.setperms backend_path (Xenbus_utils.device_backend device);
-
 		t.Xst.mkdir hotplug_path;
 		t.Xst.setperms hotplug_path (Xenbus_utils.hotplug device);
-
-		t.Xst.writev frontend_path
-		             (("backend", backend_path) :: frontend_list);
-		t.Xst.writev backend_path
-		             (("frontend", frontend_path) :: backend_list);
 
 		t.Xst.mkdir private_data_path;
 		t.Xst.setperms private_data_path (Xenbus_utils.hotplug device);
@@ -89,6 +79,33 @@ let add_device ~xs device backend_list frontend_list private_list =
 		t.Xst.writev private_data_path
 			(("backend-kind", string_of_kind device.backend.kind) ::
 				("backend-id", string_of_int device.backend.domid) :: private_list);
+	);
+
+	(* All the frontend stuff *)
+	Xs.transaction xs (fun t ->
+		begin try
+			ignore (t.Xst.read frontend_path);
+			raise (Device_frontend_already_connected device)
+		with Xs_protocol.Enoent _ -> () end;
+
+		t.Xst.rm frontend_path;
+
+		t.Xst.mkdir frontend_path;
+		t.Xst.setperms frontend_path (Xenbus_utils.device_frontend device);
+
+		t.Xst.writev frontend_path
+		             (("backend", backend_path) :: frontend_list);
+	);
+
+	(* All the backend stuff *)
+	Xs.transaction xs (fun t ->
+		t.Xst.rm backend_path;
+
+		t.Xst.mkdir backend_path;
+		t.Xst.setperms backend_path (Xenbus_utils.device_backend device);
+
+		t.Xst.writev backend_path
+		             (("frontend", frontend_path) :: backend_list);
 	)
 	)
 
