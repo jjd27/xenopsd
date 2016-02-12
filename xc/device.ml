@@ -786,7 +786,7 @@ let vnc_console_path domid = sprintf "/local/domain/%d/console" domid
 
 let pid ~xs domid =
 	try
-		let pid = xs.Xs.read (vnc_pid_path domid) in
+		let pid = Xenstore_interface.xenstore_read xs (vnc_pid_path domid) in
 		Some (int_of_string pid)
 	with _ ->
 		None
@@ -815,12 +815,12 @@ let is_vncterm_running ~xs domid =
 let get_vnc_port ~xs domid =
 	if not (is_vncterm_running ~xs domid)
 	then None
-	else (try Some(int_of_string (xs.Xs.read (Generic.vnc_port_path domid))) with _ -> None)
+	else (try Some(int_of_string (Xenstore_interface.xenstore_read xs (Generic.vnc_port_path domid))) with _ -> None)
 
 let get_tc_port ~xs domid =
 	if not (is_vncterm_running ~xs domid)
 	then None
-	else (try Some(int_of_string (xs.Xs.read (Generic.tc_port_path domid))) with _ -> None)
+	else (try Some(int_of_string (Xenstore_interface.xenstore_read xs (Generic.tc_port_path domid))) with _ -> None)
 
 
 let load_args = function
@@ -882,7 +882,7 @@ let stop ~xs domid =
 			best_effort "killing vncterm"
 				(fun () -> Unix.kill pid Sys.sigterm);
 			best_effort "removing vncterm-pid from xenstore"
-				(fun () -> xs.Xs.rm (vnc_pid_path domid))
+				(fun () -> Xenstore_interface.xenstore_rm xs (vnc_pid_path domid))
 		| None -> ()
 
 end
@@ -895,7 +895,7 @@ module DaemonMgmt (D : DAEMONPIDPATH) = struct
 	let pid_path = D.pid_path
 	let pid ~xs domid =
 		try
-			let pid = xs.Xs.read (pid_path domid) in
+			let pid = Xenstore_interface.xenstore_read xs (pid_path domid) in
 			Some (int_of_string pid)
 		with _ -> None
 	let is_running ~xs domid =
@@ -1453,12 +1453,12 @@ type info = {
 let get_vnc_port ~xs domid =
 	if not (Qemu.is_running ~xs domid)
 	then None
-	else (try Some(int_of_string (xs.Xs.read (Generic.vnc_port_path domid))) with _ -> None)
+	else (try Some(int_of_string (Xenstore_interface.xenstore_read xs (Generic.vnc_port_path domid))) with _ -> None)
 
 let get_tc_port ~xs domid =
 	if not (Qemu.is_running ~xs domid)
 	then None
-	else (try Some(int_of_string (xs.Xs.read (Generic.tc_port_path domid))) with _ -> None)
+	else (try Some(int_of_string (Xenstore_interface.xenstore_read xs (Generic.tc_port_path domid))) with _ -> None)
 
 
 (* Xenclient specific paths *)
@@ -1759,7 +1759,7 @@ let stop ~xs ~qemu_domid domid  =
 			    best_effort "killing qemu-dm"
 				    (fun () -> really_kill qemu_pid);
 			    best_effort "removing qemu-pid from xenstore"
-				    (fun () -> xs.Xs.rm qemu_pid_path);
+				    (fun () -> Xenstore_interface.xenstore_rm xs qemu_pid_path);
 			    (* best effort to delete the qemu chroot dir; we
 			       deliberately want this to fail if the dir is not
 			       empty cos it may contain core files that bugtool
