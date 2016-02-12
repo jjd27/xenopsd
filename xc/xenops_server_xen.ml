@@ -1565,8 +1565,8 @@ module VM = struct
 						let tc = Opt.map (fun port -> { Vm.protocol = Vm.Vt100; port = port; path = "" })
 							(Device.get_tc_port ~xs di.Xenctrl.domid) in
 						let local x = Printf.sprintf "/local/domain/%d/%s" di.Xenctrl.domid x in
-						let uncooperative = try ignore_string (xs.Xs.read (local "memory/uncooperative")); true with Xs_protocol.Enoent _ -> false in
-						let memory_target = try xs.Xs.read (local "memory/target") |> Int64.of_string |> Int64.mul 1024L with Xs_protocol.Enoent _ -> 0L in
+						let uncooperative = try ignore_string (Xenstore_interface.xenstore_read xs (local "memory/uncooperative")); true with Xs_protocol.Enoent _ -> false in
+						let memory_target = try Xenstore_interface.xenstore_read xs (local "memory/target") |> Int64.of_string |> Int64.mul 1024L with Xs_protocol.Enoent _ -> 0L in
 						let memory_actual =
 							let pages = Int64.of_nativeint di.Xenctrl.total_memory_pages in
 							let kib = Xenctrl.pages_to_kib pages in 
@@ -1582,10 +1582,10 @@ module VM = struct
 							(* CA-31764: may be larger than static_max if maxmem has been increased to initial-reservation. *)
 							max memory_actual max_memory_bytes in
 
-						let rtc = try xs.Xs.read (Printf.sprintf "/vm/%s/rtc/timeoffset" (Uuidm.to_string uuid)) with Xs_protocol.Enoent _ -> "" in
+						let rtc = try Xenstore_interface.xenstore_read xs (Printf.sprintf "/vm/%s/rtc/timeoffset" (Uuidm.to_string uuid)) with Xs_protocol.Enoent _ -> "" in
 						let rec ls_lR root dir =
-							let this = try [ dir, xs.Xs.read (root ^ "/" ^ dir) ] with _ -> [] in
-							let subdirs = try xs.Xs.directory (root ^ "/" ^ dir) |> List.filter (fun x -> x <> "") |> List.map (fun x -> dir ^ "/" ^ x) with _ -> [] in
+							let this = try [ dir, Xenstore_interface.xenstore_read xs (root ^ "/" ^ dir) ] with _ -> [] in
+							let subdirs = try Xenstore_interface.xenstore_dir xs (root ^ "/" ^ dir) |> List.filter (fun x -> x <> "") |> List.map (fun x -> dir ^ "/" ^ x) with _ -> [] in
 							this @ (List.concat (List.map (ls_lR root) subdirs)) in
 						let guest_agent =
 							[ "drivers"; "attr"; "data"; "control"; "device"; "feature" ] |> List.map (ls_lR (Printf.sprintf "/local/domain/%d" di.Xenctrl.domid)) |> List.concat |> List.map (fun (k,v) -> (k,Xenops_utils.utf8_recode v)) in
@@ -2665,7 +2665,7 @@ module Actions = struct
 				List.iter (remove_device_watch xs) old_devices;
 			end in
 
-		let fire_event_on_vm domid =
+		let fire_event_on_vm domid path =
 			let d = int_of_string domid in
 			let open Xenstore_watch in
 			if not(IntMap.mem d domains)
@@ -2674,6 +2674,7 @@ module Actions = struct
 				let di = IntMap.find d domains in
 				let open Xenctrl in
 				let id = Uuidm.to_string (uuid_of_di di) in
+				with_xs (fun xs -> Xenstore_interface.xenstore_update xs path);
 				Updates.add (Dynamic.Vm id) internal_updates in
 
 		let fire_event_on_device domid kind devid =
@@ -2767,7 +2768,7 @@ module Actions = struct
 							(Printexc.to_string e)
 				end
 			| "local" :: "domain" :: domid :: _ ->
-				fire_event_on_vm domid
+				fire_event_on_vm domid path
 			| "vm" :: uuid :: "rtc" :: "timeoffset" :: [] ->
 				let timeoffset = try Some (xs.Xs.read path) with _ -> None in
 				Opt.iter
