@@ -17,9 +17,15 @@ let xenstore_update xs path =
 		with Xs_protocol.Enoent _ -> None
 	in
 	Hashtbl.replace xenstore_cache norm_path value;
-	(* Invalidate the cache entry for the parent *)
-	let norm_parent = parent_of norm_path in
-	Hashtbl.remove xenstore_dir_cache norm_parent
+	(* Invalidate the cache entry for the ancestors *)
+	let rec invalidate norm_path =
+		if norm_path <> [] then begin
+			let norm_parent = parent_of norm_path in
+			Hashtbl.remove xenstore_dir_cache norm_parent;
+			invalidate norm_parent
+		end
+	in
+	invalidate norm_path
 
 let xenstore_read xs path =
 	let norm_path = normalise_path path in
