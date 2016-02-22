@@ -1468,6 +1468,12 @@ module VM = struct
 				Domain.send_s3resume ~xc di.Xenctrl.domid
 			) Newest
 
+	let get_last_start_time vm =
+		let vme = vm.Vm.id |> DB.read in (* may not exist *)
+		match vme with
+			| Some x -> x.VmExtra.persistent.VmExtra.last_start_time
+			| None -> 0.
+
 	let get_state vm =
 		let uuid = uuid_of_vm vm in
 		let vme = vm.Vm.id |> DB.read in (* may not exist *)
@@ -1551,10 +1557,7 @@ module VM = struct
 							memory_actual = memory_actual;
 							memory_limit = memory_limit;
 							rtc_timeoffset = rtc;
-							last_start_time = begin match vme with
-								| Some x -> x.VmExtra.persistent.VmExtra.last_start_time
-								| None -> 0.
-							end;
+							last_start_time = get_last_start_time vm;
 							hvm = di.Xenctrl.hvm_guest;
 							shadow_multiplier_target = shadow_multiplier_target;
 						}
