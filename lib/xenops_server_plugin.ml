@@ -87,6 +87,7 @@ module type S = sig
 		val s3suspend: Xenops_task.t -> Vm.t -> unit
 		val s3resume: Xenops_task.t -> Vm.t -> unit
 
+		val get_last_start_time: Vm.t -> float
 		val get_state: Vm.t -> Vm.state
 		val request_rdp: Vm.t -> bool -> unit
 		val run_script: Xenops_task.t -> Vm.t -> string -> Rpc.t

@@ -114,6 +114,12 @@ let get_state_nolock vm () =
 		}
 	end else halted_vm
 
+let get_last_start_time_nolock vm () =
+	if DB.exists vm.Vm.id then begin
+		let d = DB.read_exn vm.Vm.id in
+		d.Domain.last_create_time
+	end else 0.
+
 let get_domain_action_request_nolock vm () =
 	if DB.exists vm.Vm.id then begin
 		let d = DB.read_exn vm.Vm.id in
@@ -371,6 +377,7 @@ module VM = struct
 	let s3suspend _ vm = ()
 	let s3resume _ vm = ()
 
+	let get_last_start_time vm = Mutex.execute m (get_last_start_time_nolock vm)
 	let get_state vm = Mutex.execute m (get_state_nolock vm)
 
 	let request_rdp vm enabled = ()

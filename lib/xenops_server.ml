@@ -1581,8 +1581,8 @@ and perform ?subtask ?result (op: operation) (t: Xenops_task.t) : unit =
 			end
 		| VM_check_state id ->
 			let vm = VM_DB.read_exn id in
-			let state = B.VM.get_state vm in
-			let run_time = Unix.gettimeofday () -. state.Vm.last_start_time in
+			let last_start_time = B.VM.get_last_start_time vm in
+			let run_time = Unix.gettimeofday () -. last_start_time in
 			let actions = match B.VM.get_domain_action_request vm with
 				| Some Needs_reboot -> vm.Vm.on_reboot
 				| Some Needs_poweroff -> vm.Vm.on_shutdown
