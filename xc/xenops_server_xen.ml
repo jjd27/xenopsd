@@ -2579,18 +2579,7 @@ module Actions = struct
 
 	let interesting_paths_for_domain domid uuid =
 		let open Printf in [
-			sprintf "/local/domain/%d/attr" domid;
-			sprintf "/local/domain/%d/data/updated" domid;
-			sprintf "/local/domain/%d/data/ts" domid;
-			sprintf "/local/domain/%d/memory/target" domid;
-			sprintf "/local/domain/%d/memory/uncooperative" domid;
-			sprintf "/local/domain/%d/console/vnc-port" domid;
-			sprintf "/local/domain/%d/console/tc-port" domid;
-			sprintf "/local/domain/%d/control" domid;
-			sprintf "/local/domain/%d/device" domid;
-			sprintf "/local/domain/%d/rrd" domid;
-			sprintf "/local/domain/%d/vm-data" domid;
-			sprintf "/local/domain/%d/feature" domid;
+			sprintf "/local/domain/%d" domid;
 			sprintf "/vm/%s/rtc/timeoffset" uuid;
 		]
 
